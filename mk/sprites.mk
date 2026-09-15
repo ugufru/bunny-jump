@@ -14,12 +14,6 @@ build/sprites.fs: $(SPRITE_SRC) | build
 
 build/preview.png: build/sprites.fs
 
-# 1x1 rows variant for the #20 experiment: make run-bunny-jump-1x
-build/sprites-1x.fs: $(SPRITE_SRC) | build
-	python3 tools/png2rg6.py tools/frames.json build --rows 1 --suffix -1x
-
-bunny-jump-1x.bin: build/sprites-1x.fs
-
 preview: build/preview.png
 	open $<
 

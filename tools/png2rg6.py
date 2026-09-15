@@ -3,8 +3,9 @@
 
 Usage: python3 tools/png2rg6.py tools/frames.json build [--rows N] [--suffix S]
 
---rows 1 keeps source rows 1:1 instead of doubling them (the squashed 1x1
-look, issue #20); --suffix names the outputs sprites<S>.fs and preview<S>.png.
+--rows 2 doubles every source row (the TV-correct but twice as costly look);
+the default keeps rows 1:1 (user decision, issue #20). --suffix names the
+outputs sprites<S>.fs and preview<S>.png.
 
 Reads crop boxes, color map and sequences from frames.json and writes:
   build/sprites.fs    DATA[PY blocks, one per frame, anchor CONSTANTs,
@@ -25,8 +26,9 @@ source pixels become white. Frames are padded with white so both ox and w are
 multiples of 4, which keeps the byte-aligned blit on byte boundaries whenever
 the anchor x is a multiple of 4.
 
-Source rows are doubled: an RG6 artifact pixel is 2 dots wide and 1 scanline
-tall, so a 1:1 copy would squash the art to half height.
+Source rows are copied 1:1 by default. An RG6 artifact pixel is 2 dots wide
+and 1 scanline tall, so the art shows at half height; the user preferred that
+look after trying both (issue #20), and it halves the blit work.
 
 Anchors: spr-<name>-ox and spr-<name>-oy are the signed offset of the record's
 top-left corner from the anchor, in artifact pixels and scanlines. The anchor
@@ -138,7 +140,7 @@ def make_frame(name, pixels, ox, oy):
             "pixels": pixels, "data": data}
 
 
-ROW_SCALE = 2         # 2 doubles source rows (TV aspect); --rows 1 for 1x1
+ROW_SCALE = 1         # 1x1 rows (issue #20); --rows 2 doubles for TV aspect
 
 
 def convert_frame(sheet, frame, cfg, table, unmapped):
