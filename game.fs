@@ -66,11 +66,14 @@ bytes.fromhex("00" * 64)
 : spr@  ( n -- addr )  2* spr-tab + @ ;
 : rec-h   ( addr -- h )  1 + C@ ;
 
-\ ---- Hearts (#8) -------------------------------------------------------
-VARIABLE lives
+\ ---- Hearts (#8, #22) --------------------------------------------------
+\ The bunny starts with no hearts and earns one per carrot eaten. At most
+\ max-hearts are drawn, 12 pixels apart along the top left.
+VARIABLE hearts
+10 CONSTANT max-hearts
 
 : draw-hearts  ( -- )
-  lives @ ?DUP IF
+  hearts @ max-hearts MIN ?DUP IF
     0 DO  spr-heart  I 12 * 4 +  2  blit  LOOP
   THEN ;
 
@@ -354,6 +357,7 @@ INCLUDE fast.fs
     white-carrot
     DUP seq-carrot seq-carrot-len + < IF DUP draw-carrot THEN
     repair
+    draw-hearts
     flip
   LOOP
   2DROP ;
@@ -367,6 +371,7 @@ INCLUDE fast.fs
     seq-munch I +  seq-carrot I + 1 +  eat-step
     12 hold
   LOOP
+  1 hearts +!             \ a heart for the carrot (#22)
   0  seq-carrot seq-carrot-len +  eat-step
   30 hold ;
 
@@ -419,7 +424,7 @@ INCLUDE fast.fs
 : main  ( -- )
   rg-init
   init-tables
-  3 lives !
+  0 hearts !
   start-level
   BEGIN
     read-input

@@ -29,7 +29,7 @@ VARIABLE sp-left   \ passes left in it
 : auto-main  ( -- )
   rg-init
   init-tables
-  3 lives !
+  0 hearts !
   start-level
   script sp !  script C@ sp-left !
   \ Frame-rate stats for #19, read from the RAM dump: show-page (fast.fs)
