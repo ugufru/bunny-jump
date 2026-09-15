@@ -83,9 +83,18 @@ Any top-level `.fs` program builds with `make name.bin` and runs with
 
 ## Status
 
-A proof of concept of the core mechanic. Open work includes art touch-ups for
-the 1x1 bunny, a LEVEL COMPLETE banner, more levels, and what hearts are for.
-See `issues.html`.
+A proof of concept of the core mechanic: hopping, stepping, one-way ledges,
+the carrot eat sequence and earned hearts, at 60 fps without flicker.
+
+Open work includes art touch-ups for the 1x1 bunny, a LEVEL COMPLETE banner,
+more levels, and smoother sideways motion. What happens when the bunny fails
+is still undecided: the ideas under consideration are bonks and naps (a fall
+or hazard costs a heart, and at zero hearts the bunny falls asleep and wakes
+at the start), predators that chase the bunny home, hunger, or no fail state
+at all.
+
+The work is tracked in `issues.jsonl` and ranked in `roadmap.jsonl`; open
+`issues.html` in a browser to read it.
 
 ## License
 
