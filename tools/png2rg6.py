@@ -170,6 +170,12 @@ def write_forth(path, frames, sequences):
                 f"{f['ox']} CONSTANT spr-{f['name']}-ox",
                 f"{f['oy']} CONSTANT spr-{f['name']}-oy",
                 ""]
+    oxy = bytes(b & 0xFF for f in frames for b in (f["ox"], f["oy"]))
+    out += ["\\ spr-oxy - ox oy as signed bytes, two per frame index, so code",
+            "\\ that picks frames by index can find the anchor offsets.",
+            "DATA[PY spr-oxy",
+            f"bytes.fromhex(\"{oxy.hex()}\")",
+            "]DATA", ""]
     names = [f["name"] for f in frames]
     out.append(f"{len(frames)} CONSTANT spr-count")
     for seq, members in sequences.items():
