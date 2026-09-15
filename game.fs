@@ -389,24 +389,30 @@ VARIABLE step-t     \ fields left in the step animation, 0 when idle (#24)
   grounded @  ay carrot-y = AND  ax carrot-x 28 - > AND ;
 
 \ eat-step - show bunny frame and carrot frame (seq-carrot + 4 = eaten) on
-\ both pages, so the change stays whichever page is showing.
+\ both pages, so the change stays whichever page is showing. The carrot is
+\ redrawn before the bunny: the munch box ends exactly at the carrot tip,
+\ so neither erases the other (#25).
 : eat-step  ( frame carrot -- )
   2 0 DO
-    OVER draw-frame
     white-carrot
     DUP seq-carrot seq-carrot-len + < IF DUP draw-carrot THEN
+    OVER draw-frame
     repair
     draw-hearts
     flip
   LOOP
   2DROP ;
 
-\ eat - stand left of the carrot and munch it down bite by bite.
+\ eat - stand left of the carrot and munch it down bite by bite. Like the
+\ bunny demo, the bunny steps forward after each bite by what the bite took
+\ off the carrot tip: each bite trims 4 pixels, so one step-dx (#25).
 : eat  ( -- )
   carrot-x 16 - 16 * bx !  carrot-y 16 * by !  0 facing !  1 grounded !
+  0 step-t !
   0 seq-carrot eat-step
   20 hold
   4 0 DO
+    I IF step-dx bx +! THEN   \ follow the tip the last bite left
     seq-munch I +  seq-carrot I + 1 +  eat-step
     12 hold
   LOOP
