@@ -8,7 +8,8 @@
 \ Work tracking: issues.jsonl (#5 hop, #6 platforms, #7 carrot, #8 hearts).
 
 INCLUDE build/coco-libs.fs
-INCLUDE build/sprites.fs
+\ Sprite data (build/sprites.fs or a variant) is INCLUDEd by the program
+\ file before this one, so the same game can run with different art.
 INCLUDE blit.fs
 INCLUDE input.fs
 

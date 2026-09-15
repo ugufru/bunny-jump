@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """png2rg6.py - convert bunny sheet frames and ASCII art to RG6 sprite records.
 
-Usage: python3 tools/png2rg6.py tools/frames.json build
+Usage: python3 tools/png2rg6.py tools/frames.json build [--rows N] [--suffix S]
+
+--rows 1 keeps source rows 1:1 instead of doubling them (the squashed 1x1
+look, issue #20); --suffix names the outputs sprites<S>.fs and preview<S>.png.
 
 Reads crop boxes, color map and sequences from frames.json and writes:
   build/sprites.fs    DATA[PY blocks, one per frame, anchor CONSTANTs,
@@ -135,10 +138,13 @@ def make_frame(name, pixels, ox, oy):
             "pixels": pixels, "data": data}
 
 
+ROW_SCALE = 2         # 2 doubles source rows (TV aspect); --rows 1 for 1x1
+
+
 def convert_frame(sheet, frame, cfg, table, unmapped):
     src, ox, oy = source_pixels(sheet, frame, cfg, table, unmapped)
-    doubled = [list(r) for r in src for _ in range(2)]
-    return make_frame(frame["name"], doubled, ox, oy * 2)
+    scaled = [list(r) for r in src for _ in range(ROW_SCALE)]
+    return make_frame(frame["name"], scaled, ox, oy * ROW_SCALE)
 
 
 def mirror_frame(base, name):
@@ -224,10 +230,21 @@ def write_preview(path, frames, sequences, cfg):
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.exit("usage: png2rg6.py frames.json outdir")
-    cfg = json.loads(Path(sys.argv[1]).read_text())
-    outdir = Path(sys.argv[2])
+    global ROW_SCALE
+    args, suffix = sys.argv[1:], ""
+    while len(args) > 2:
+        opt, val = args[-2], args[-1]
+        if opt == "--rows":
+            ROW_SCALE = int(val)
+        elif opt == "--suffix":
+            suffix = val
+        else:
+            sys.exit(f"unknown option {opt}")
+        args = args[:-2]
+    if len(args) != 2:
+        sys.exit("usage: png2rg6.py frames.json outdir [--rows N] [--suffix S]")
+    cfg = json.loads(Path(args[0]).read_text())
+    outdir = Path(args[1])
     sheet = Image.open(cfg["sheet"]).convert("RGBA")
     table = build_color_map(cfg["colors"])
     unmapped = set()
@@ -248,8 +265,8 @@ def main():
             frames.append(convert_frame(sheet, f, cfg, table, unmapped))
 
     outdir.mkdir(parents=True, exist_ok=True)
-    write_forth(outdir / "sprites.fs", frames, cfg["sequences"])
-    write_preview(outdir / "preview.png", frames, cfg["sequences"], cfg)
+    write_forth(outdir / f"sprites{suffix}.fs", frames, cfg["sequences"])
+    write_preview(outdir / f"preview{suffix}.png", frames, cfg["sequences"], cfg)
 
     total = 0
     for f in frames:

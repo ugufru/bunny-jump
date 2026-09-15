@@ -5,6 +5,7 @@
 \ The script climbs the level: hop right to the right ledge, left to the
 \ left ledge, right to the carrot ledge, right again to reach the carrot.
 
+INCLUDE build/sprites.fs
 INCLUDE game.fs
 
 \ Script: pairs of (frames, keys), keys bit 0 left, bit 1 right, bit 2 hop
