@@ -6,3 +6,4 @@
 {"rank": 6, "id": 6, "why": "Makes it a platformer. Depends on the hop constants from #5 and repairs platforms the white erase box covers.", "added": "2026-09-15"}
 {"rank": 7, "id": 7, "why": "Completes the proof-of-concept loop: climb, reach the carrot, eat it, level complete.", "added": "2026-09-15"}
 {"rank": 8, "id": 8, "why": "First step toward lives, and cheap once the heart record from #3 exists. Kept after the core loop because it does not affect the mechanic.", "added": "2026-09-15"}
+{"rank": 9, "id": 13, "why": "Last piece of the proof-of-concept ending. The hand-drawn banner option reuses the sprite pipeline, so it is small once the user has played the loop.", "added": "2026-09-15"}
