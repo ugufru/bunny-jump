@@ -64,14 +64,11 @@ VARIABLE probe-on
 : rec-wb  ( addr -- wbytes )  C@ 2 RSHIFT ;
 
 \ spr@ - frame index to record address through a table filled once by
-\ init-spr-tab. The generated spr word tests up to 19 indexes in turn,
+\ init-tables. The generated spr word tests up to 19 indexes in turn,
 \ about 4,000 cy at worst, too slow to call every frame (#17).
 DATA[PY spr-tab
 bytes.fromhex("00" * 64)
 ]DATA
-
-: init-spr-tab  ( -- )
-  spr-count 0 DO  I spr  I 2* spr-tab + !  LOOP ;
 
 : spr@  ( n -- addr )  2* spr-tab + @ ;
 : rec-h   ( addr -- h )  1 + C@ ;
@@ -294,19 +291,18 @@ CODE move-sprite  \ ( rec x y -- )
 
 VARIABLE rlo  VARIABLE rhi
 
+INCLUDE fast.fs
+
+\ repair - redraw only the platforms and hearts the last move touched.
 : repair  ( -- )
-  ny1 @ oy1 @ MIN rlo !
-  ny2 @ oy2 @ MAX rhi !
-  #plats 0 DO
-    I plat 2 + C@  DUP rhi @ <  SWAP 4 + rlo @ >  AND
-    IF I plat draw-plat THEN
-  LOOP
-  rlo @ 14 < IF draw-hearts THEN ;
+  repair-mask ?DUP IF
+    #plats 0 DO  DUP 1 I LSHIFT AND IF I plat draw-plat THEN  LOOP
+    $80 AND IF draw-hearts THEN
+  THEN ;
 
 \ draw-frame - show frame n at the bunny's anchor, if anything changed.
 : draw-frame  ( n -- )
-  DUP f-ox ax + n-x !
-  DUP f-oy ay + n-y !
+  DUP frame-pos
   DUP d-frame @ =  n-x @ d-x @ = AND  n-y @ d-y @ = AND
   IF DROP EXIT THEN
   $7006 probe
@@ -316,9 +312,6 @@ VARIABLE rlo  VARIABLE rhi
   repair ;
 
 \ ---- Physics (#5, #6) --------------------------------------------------
-VARIABLE old-foot
-VARIABLE py
-
 : hop!  ( -- )
   hop-v NEGATE vy !  0 grounded !
   left? IF  hop-dx NEGATE vx !  1 facing !
@@ -329,37 +322,14 @@ VARIABLE py
   left? IF 1 facing ! THEN
   right? IF 0 facing ! THEN ;
 
-\ in-span? - lo <= n < hi. Used instead of the kernel WITHIN, which reads
-\ n one cell too deep (LDD 4+2,U at kernel.asm CODE_WITHIN).
-: in-span?  ( n lo hi -- f )
-  >R  OVER > 0=  SWAP R> <  AND ;
-
-\ land? - while falling, stop on the first platform whose top the feet
-\ crossed this frame. Platforms are one-way: hops pass up through them.
-: land?  ( -- )
-  #plats 0 DO
-    I plat 2 + C@ py !
-    old-foot @ py @ > 0=
-    ay py @ < 0=  AND
-    bx @ 4 RSHIFT  I plat C@  I plat 1 + C@ 1 +  in-span?  AND
-    IF
-      py @ 16 * by !  0 vy !  0 vx !  1 grounded !
-      EXIT        \ fc.py adds the UNLOOP for EXIT inside DO
-    THEN
-  LOOP ;
-
+\ physics - grounded: turn and maybe hop. Airborne: physics-air (fast.fs)
+\ moves the bunny and lands it on one-way platforms.
 : physics  ( -- )
   grounded @ IF
     turn
     hop-pressed? IF hop! THEN
   ELSE
-    ay old-foot !
-    vy @ gravity + vy !
-    bx @ vx @ +  min-ax 16 * MAX  max-ax 16 * MIN  bx !
-    by @ vy @ +
-    DUP min-ay 16 * < IF DROP min-ay 16 *  0 vy ! THEN
-    by !
-    vy @ 0 > IF land? THEN
+    physics-air
   THEN ;
 
 \ ---- Carrot (#7) -------------------------------------------------------
@@ -398,6 +368,15 @@ VARIABLE py
   UNTIL ;
 
 \ ---- Level flow --------------------------------------------------------
+\ init-tables - fill spr-tab and copy the tuning constants and table
+\ addresses into the cells the CODE words in fast.fs read.
+: init-tables  ( -- )
+  spr-count 0 DO  I spr  I 2* spr-tab + !  LOOP
+  gravity k-gravity !
+  min-ax 16 * k-min-bx !  max-ax 16 * k-max-bx !
+  min-ay 16 * k-min-by !
+  #plats k-plats !  level level-addr !  spr-oxy oxy-addr ! ;
+
 : start-level  ( -- )
   white-screen
   draw-level
@@ -420,7 +399,7 @@ VARIABLE py
 
 : main  ( -- )
   rg-init
-  init-spr-tab
+  init-tables
   3 lives !
   start-level
   BEGIN

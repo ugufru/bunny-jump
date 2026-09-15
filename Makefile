@@ -26,7 +26,7 @@ GEN     = build/coco-libs.fs
 
 # Extra prerequisites for every program. fc.py INCLUDEs are not tracked, so
 # shared sources are listed here; mk/*.mk fragments add generated ones.
-PROG_DEPS = blit.fs input.fs game.fs
+PROG_DEPS = blit.fs input.fs game.fs fast.fs
 
 all: $(BIN)
 

@@ -26,7 +26,7 @@ VARIABLE sp-left   \ frames left in it
 
 : auto-main  ( -- )
   rg-init
-  init-spr-tab
+  init-tables
   3 lives !
   start-level
   script sp !  script C@ sp-left !
