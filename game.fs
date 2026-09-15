@@ -25,6 +25,7 @@ INCLUDE input.fs
 111 CONSTANT hop-v          \ upward speed at take-off
 28  CONSTANT hop-dx         \ sideways speed of a diagonal hop
 64  CONSTANT step-dx        \ one step: 4 pixels, one VRAM byte (#23)
+9   CONSTANT step-fields    \ step animation length in 60 Hz fields (#24)
 28  CONSTANT min-ax         \ anchor x limits keep every frame on screen
 100 CONSTANT max-ax         \   (widest frame reaches ax-28 .. ax+28)
 30  CONSTANT min-ay         \ ceiling: the tallest 1x frame reaches ay-29
@@ -316,8 +317,20 @@ INCLUDE fast.fs
   repair ;
 
 \ ---- Physics (#5, #6) --------------------------------------------------
+VARIABLE step-t     \ fields left in the step animation, 0 when idle (#24)
+
+\ anim-frame - the frame to show: during a step, hop2, hop3, hop4 for 3
+\ fields each (the sheet's hop cycle, played in place), else cur-frame.
+: anim-frame  ( -- n )
+  step-t @ ?DUP IF
+    DUP 6 > IF DROP 1 ELSE 3 > IF 2 ELSE 3 THEN THEN
+    facing @ IF seq-hopl + THEN
+  ELSE
+    cur-frame
+  THEN ;
+
 : hop!  ( -- )
-  hop-v NEGATE vy !  0 grounded !
+  hop-v NEGATE vy !  0 grounded !  0 step-t !
   left? IF  hop-dx NEGATE vx !  1 facing !
   ELSE right? IF  hop-dx vx !  0 facing !
   ELSE 0 vx ! THEN THEN ;
@@ -339,7 +352,8 @@ INCLUDE fast.fs
   DUP facing @ = IF
     IF step-dx NEGATE ELSE step-dx THEN
     bx @ +  min-ax 16 * MAX  max-ax 16 * MIN  bx !
-    supported? 0= IF  0 grounded !  0 vy !  0 vx !  THEN
+    step-fields step-t !
+    supported? 0= IF  0 grounded !  0 vy !  0 vx !  0 step-t !  THEN
   ELSE
     facing !
   THEN ;
@@ -351,6 +365,7 @@ INCLUDE fast.fs
 \ hop.
 : physics  ( -- )
   grounded @ IF
+    step-t @ IF  step-t @ fields @ - 0 MAX step-t !  THEN
     hop-pressed? IF
       hop!
     ELSE
@@ -429,7 +444,7 @@ INCLUDE fast.fs
 
 : start-level  ( -- )
   start-x 16 * bx !  start-y 16 * by !
-  0 vx !  0 vy !  1 grounded !  0 facing !
+  0 vx !  0 vy !  1 grounded !  0 facing !  0 step-t !
   reset-page swap-page
   reset-page swap-page
   0 missed !  1 fields ! ;
@@ -437,7 +452,7 @@ INCLUDE fast.fs
 \ step - one pass of play after input has been sampled; flip follows.
 : step  ( -- )
   physics
-  cur-frame draw-frame
+  anim-frame draw-frame
   grounded @ IF
     at-carrot? IF
       eat complete
