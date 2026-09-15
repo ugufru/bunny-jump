@@ -1,0 +1,7 @@
+# heart - pickup, 7 wide, drawn in red (r = code 2, . = transparent).
+.rr.rr.
+rrrrrrr
+rrrrrrr
+.rrrrr.
+..rrr..
+...r...

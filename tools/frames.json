@@ -1,0 +1,46 @@
+{
+  "sheet": "assets/bunnysheet5.png",
+  "baseline_y": 245,
+  "cell_w": 32,
+  "colors_doc": "Sheet RGB to RG6 code (0 black, 1 blue, 2 red, 3 white) for the white background: body and light grey are white, the outline is black, mid grey shading is blue, and the ear pink, browns and nose are red accents. Transparent sheet pixels become white.",
+  "colors": {
+    "0": [[58, 55, 55]],
+    "1": [[130, 124, 124]],
+    "2": [[214, 179, 157], [188, 139, 109], [196, 145, 114], [205, 174, 103]],
+    "3": [[239, 233, 231], [183, 179, 178]]
+  },
+  "preview_rgb_doc": "RG6 CSS 1 artifact colors, approximate: black, blue, red/orange, white.",
+  "preview_rgb": [[0, 0, 0], [40, 110, 255], [255, 100, 30], [255, 255, 255]],
+  "frames": [
+    {"name": "hop1",   "box": [28, 218, 25, 27],  "cell_x": 24},
+    {"name": "hop2",   "box": [59, 216, 26, 28],  "cell_x": 56},
+    {"name": "hop3",   "box": [91, 217, 33, 28],  "cell_x": 88},
+    {"name": "hop4",   "box": [134, 218, 29, 25], "cell_x": 120},
+    {"name": "hop1l",  "mirror": "hop1"},
+    {"name": "hop2l",  "mirror": "hop2"},
+    {"name": "hop3l",  "mirror": "hop3"},
+    {"name": "hop4l",  "mirror": "hop4"},
+    {"name": "munch1", "box": [179, 218, 26, 25], "cell_x": 176},
+    {"name": "munch2", "box": [210, 221, 27, 22], "cell_x": 208},
+    {"name": "munch3", "box": [243, 224, 28, 19], "cell_x": 240},
+    {"name": "munch4", "box": [275, 224, 28, 19], "cell_x": 272},
+    {"name": "carrot3", "art": "assets/extra/carrot3.txt", "ox": 0, "oy": -7},
+    {"name": "carrot2", "art": "assets/extra/carrot2.txt", "ox": 0, "oy": -7},
+    {"name": "carrot1", "art": "assets/extra/carrot1.txt", "ox": 0, "oy": -7},
+    {"name": "carrot0", "art": "assets/extra/carrot0.txt", "ox": 0, "oy": -7},
+    {"name": "heart",   "art": "assets/extra/heart.txt",   "ox": -3, "oy": -6},
+    {"name": "hop1r",   "recolor": "hop1",  "map": {"3": 2}},
+    {"name": "hop1lr",  "recolor": "hop1l", "map": {"3": 2}}
+  ],
+  "art_doc": "art frames are ASCII pixel maps (. transparent, k black, c or b blue, o or r red/orange, w white; # lines are comments). ox/oy give the top-left offset from the anchor in source pixels (oy doubles with the rows). Every frame is trimmed of transparent rows and columns and its offsets moved to match, unless trim is false, then padded with transparent columns so ox and w are multiples of 4. Transparent pixels are stored as white.",
+  "mirror_doc": "mirror frames are an earlier frame flipped left to right: ox = -(ox + w), so the anchor stays at the same screen x.",
+  "recolor_doc": "recolor frames are an earlier frame with codes swapped by map (red death bunny: white 3 -> red 2; transparent padding stays white).",
+  "sequences": {
+    "hop":    ["hop1", "hop2", "hop3", "hop4"],
+    "hopl":   ["hop1l", "hop2l", "hop3l", "hop4l"],
+    "munch":  ["munch1", "munch2", "munch3", "munch4"],
+    "carrot": ["carrot3", "carrot2", "carrot1", "carrot0"],
+    "heart":  ["heart"],
+    "red":    ["hop1r", "hop1lr"]
+  }
+}

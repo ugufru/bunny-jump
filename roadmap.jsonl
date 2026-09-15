@@ -1,9 +1,8 @@
-{"rank": 1, "id": 1, "why": "The gate: nothing builds or runs without it. It also retires the first unknown, whether red actually shows under cmp-br, before any art is converted.", "added": "2026-09-15"}
-{"rank": 2, "id": 2, "why": "Cheap tooling that makes every later issue verifiable from a PNG, without depending on the XRoar window (which bunny found unreliable on another macOS Space).", "added": "2026-09-15"}
-{"rank": 3, "id": 3, "why": "Every gameplay issue draws these records. Doubled rows and the 2-byte RG6 header are decided, so this is straightforward conversion work.", "added": "2026-09-15"}
-{"rank": 4, "id": 12, "why": "The white background means spr-draw cannot draw black outlines, so every gameplay issue now draws through this blit. It also retires the frame-budget worry about per-pixel spr-draw.", "added": "2026-09-15"}
-{"rank": 5, "id": 4, "why": "Small, and hop physics cannot be tested without held-key input.", "added": "2026-09-15"}
-{"rank": 6, "id": 5, "why": "The biggest unknown: whether the hop looks smooth and feels right with byte-aligned (4 pixel) horizontal steps from the #12 blit. Everything after it is tuned against its constants.", "added": "2026-09-15"}
-{"rank": 7, "id": 6, "why": "Makes it a platformer. Depends on the hop constants from #5 and repairs platforms the white erase box covers.", "added": "2026-09-15"}
-{"rank": 8, "id": 7, "why": "Completes the proof-of-concept loop: climb, reach the carrot, eat it, level complete.", "added": "2026-09-15"}
-{"rank": 9, "id": 8, "why": "First step toward lives, and cheap once the heart record from #3 exists. Kept after the core loop because it does not affect the mechanic.", "added": "2026-09-15"}
+{"rank": 1, "id": 2, "why": "Cheap tooling that makes every later issue verifiable from a PNG, without depending on the XRoar window (which bunny found unreliable on another macOS Space).", "added": "2026-09-15"}
+{"rank": 2, "id": 3, "why": "Every gameplay issue draws these records. Doubled rows and the 2-byte RG6 header are decided, so this is straightforward conversion work.", "added": "2026-09-15"}
+{"rank": 3, "id": 12, "why": "The white background means spr-draw cannot draw black outlines, so every gameplay issue now draws through this blit. It also retires the frame-budget worry about per-pixel spr-draw.", "added": "2026-09-15"}
+{"rank": 4, "id": 4, "why": "Small, and hop physics cannot be tested without held-key input.", "added": "2026-09-15"}
+{"rank": 5, "id": 5, "why": "The biggest unknown: whether the hop looks smooth and feels right with byte-aligned (4 pixel) horizontal steps from the #12 blit. Everything after it is tuned against its constants.", "added": "2026-09-15"}
+{"rank": 6, "id": 6, "why": "Makes it a platformer. Depends on the hop constants from #5 and repairs platforms the white erase box covers.", "added": "2026-09-15"}
+{"rank": 7, "id": 7, "why": "Completes the proof-of-concept loop: climb, reach the carrot, eat it, level complete.", "added": "2026-09-15"}
+{"rank": 8, "id": 8, "why": "First step toward lives, and cheap once the heart record from #3 exists. Kept after the core loop because it does not affect the mechanic.", "added": "2026-09-15"}
