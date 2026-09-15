@@ -5,7 +5,8 @@
 \ quits. White background, black platforms, drawn with the opaque byte blit.
 \
 \ Art: PixelFarm, Stephen 'Redshrike' Challener (see CREDITS.md).
-\ Work tracking: issues.jsonl (#5 hop, #6 platforms, #7 carrot, #8 hearts).
+\ Work tracking: issues.jsonl (#5 hop, #6 platforms, #7 carrot, #8 hearts,
+\ #18 hop feel, #19 page flipping and frame timing).
 
 INCLUDE build/coco-libs.fs
 \ Sprite data (build/sprites.fs or a variant) is INCLUDEd by the program
@@ -13,16 +14,19 @@ INCLUDE build/coco-libs.fs
 INCLUDE blit.fs
 INCLUDE input.fs
 
-\ ---- Tuning (#5, #6) ---------------------------------------------------
-\ Positions and velocities are in 1/16 artifact pixel (scanline) units.
-\ A hop lifts about hop-v*hop-v / (2*gravity) / 16 = 52 rows, enough to
-\ clear the 36-40 row gaps between platforms.
-4   CONSTANT gravity        \ added to vy every frame
-82  CONSTANT hop-v          \ upward speed at take-off
-20  CONSTANT hop-dx         \ sideways speed of a diagonal hop
+\ ---- Tuning (#5, #6, #18) ----------------------------------------------
+\ Positions and velocities are in 1/16 artifact pixel (scanline) units per
+\ 60 Hz field. A hop lifts about hop-v*hop-v / (2*gravity) / 16 = 48 rows,
+\ enough to clear the 36-40 row gaps between platforms, reaching the top in
+\ hop-v/gravity = 14 fields (was 21 with gravity 4, hop-v 82, which the
+\ user found slow and floaty). A diagonal hop to the next ledge covers
+\ about 35 pixels sideways.
+8   CONSTANT gravity        \ added to vy every field
+111 CONSTANT hop-v          \ upward speed at take-off
+28  CONSTANT hop-dx         \ sideways speed of a diagonal hop
 28  CONSTANT min-ax         \ anchor x limits keep every frame on screen
 100 CONSTANT max-ax         \   (widest frame reaches ax-28 .. ax+28)
-58  CONSTANT min-ay         \ ceiling: the tallest frame reaches ay-58
+30  CONSTANT min-ay         \ ceiling: the tallest 1x frame reaches ay-29
 
 \ ---- Level (#6) --------------------------------------------------------
 \ Platforms as x1 x2 y bytes: x1 and x2+1 are multiples of 4, y is the top
@@ -45,18 +49,6 @@ bytes.fromhex("007FBC" "447B94" "043B6C" "3C7B48")
   4 $00 fill-box ;
 
 : draw-level  ( -- )  #plats 0 DO  I plat draw-plat  LOOP ;
-
-\ ---- Frame-rate probe (#17) -------------------------------------------
-\ When probe-on is set, probe counts fields that ended since the last probe
-\ or vsync into the cell at addr (clearing the field-sync flag the way
-\ vsync does), one counter per spot, so the RAM dump shows where time goes. Called between steps that each take less than one field, so
-\ no field is missed: fps = 60 * passes / (passes + count). Off in play.
-VARIABLE probe-on
-
-: probe  ( addr -- )
-  probe-on @ IF
-    $FF03 C@ $80 AND IF  $FF02 C@ DROP  1 OVER +!  THEN
-  THEN  DROP ;
 
 \ ---- Sprite helpers ----------------------------------------------------
 : sx8     ( c -- n )  DUP 127 > IF 256 - THEN ;
@@ -91,13 +83,6 @@ VARIABLE facing                 \ 0 right, 1 left
 : ax  ( -- x )  bx @ 4 RSHIFT $FFFC AND ;   \ byte aligned for blit
 : ay  ( -- y )  by @ 4 RSHIFT ;
 
-\ cur-frame - hop1 standing; hop2 rising, hop3 near the top, hop4 falling.
-: cur-frame  ( -- n )
-  grounded @ IF 0 ELSE
-    vy @ -20 < IF 1 ELSE  vy @ 20 > IF 3 ELSE 2 THEN  THEN
-  THEN
-  facing @ IF seq-hopl + THEN ;
-
 \ ---- Drawing -----------------------------------------------------------
 \ move-sprite blits the new frame (opaque, so it covers its own box), then
 \ erases to white only the strips of the old box outside the new one, then
@@ -109,6 +94,7 @@ VARIABLE n-x  VARIABLE n-y  VARIABLE n-w
 VARIABLE ox1  VARIABLE ox2  VARIABLE oy1  VARIABLE oy2
 VARIABLE nx1  VARIABLE nx2  VARIABLE ny1  VARIABLE ny2
 VARIABLE mv-c1  VARIABLE mv-c2  VARIABLE mv-r1  VARIABLE mv-r2
+VARIABLE missed         \ fields that ended mid-pass, for flip (fast.fs)
 
 \ move-sprite - draw record at top-left x,y (x a multiple of 4) and erase
 \ what is left of the previous box (d-x d-y in pixels, d-w in bytes, d-h
@@ -133,7 +119,9 @@ CODE move-sprite  \ ( rec x y -- )
         PSHS    A
         ADDB    ,S+
         STB     FVAR_nx2+1
-; ---- blit, two bytes at a time
+; ---- blit, two bytes at a time. U walks the destination and the counters
+; sit on the stack: ,S pair count, 1,S rows left, 2,S pairs per row, 3,S odd
+; byte flag, 4,S bytes to skip to the next row (#19: ~42 cy per row, was 95).
         LDB     FVAR_ny1+1
         CLRA
         ASLB
@@ -149,29 +137,42 @@ CODE move-sprite  \ ( rec x y -- )
         ADDD    FVAR_rv
         ADDB    FVAR_nx1+1
         ADCA    #0
-        STD     FVAR_blt_dst
-        LDB     1,Y
-        STB     FVAR_blt_h+1    ; rows left
+        TFR     D,U             ; U = first destination byte
+        LDA     FVAR_n_w+1      ; bytes per row
+        LDB     #32
+        PSHS    A
+        SUBB    ,S+
+        PSHS    B               ; skip = 32 - bytes per row
+        ANDA    #1
+        PSHS    A               ; odd byte flag
+        LDA     FVAR_n_w+1
+        LSRA
+        PSHS    A               ; pairs per row
+        LDA     1,Y
+        PSHS    A               ; rows left
+        LEAS    -1,S            ; pair counter
         LEAX    2,Y             ; X = pixel data
-@row    LDU     FVAR_blt_dst
-        LDB     FVAR_n_w+1
-        LSRB                    ; B = pairs, carry = odd byte
-        BCC     @even
+@row    TST     3,S
+        BEQ     @pairs
         LDA     ,X+
         STA     ,U+
-        TSTB
+@pairs  LDB     2,S
         BEQ     @rowend
-@even   PSHS    B
+        STB     ,S
 @pair   LDD     ,X++
         STD     ,U++
         DEC     ,S
         BNE     @pair
-        LEAS    1,S
-@rowend LDD     FVAR_blt_dst
-        ADDD    #32
-        STD     FVAR_blt_dst
-        DEC     FVAR_blt_h+1
+@rowend LDB     4,S
+        LEAU    B,U             ; to the start of the next row
+        DEC     1,S
         BNE     @row
+        LEAS    5,S
+        LDA     $FF03           ; a field ended during the blit? (#19)
+        BPL     @ontime
+        LDA     $FF02
+        INC     FVAR_missed+1
+@ontime
 ; ---- erase the old box minus the new one
         LDB     FVAR_d_w+1
         BNE     @old
@@ -306,10 +307,8 @@ INCLUDE fast.fs
   DUP frame-pos
   DUP d-frame @ =  n-x @ d-x @ = AND  n-y @ d-y @ = AND
   IF DROP EXIT THEN
-  $7006 probe
   DUP d-frame !
   spr@ n-x @ n-y @ move-sprite
-  $7008 probe
   repair ;
 
 \ ---- Physics (#5, #6) --------------------------------------------------
@@ -324,7 +323,9 @@ INCLUDE fast.fs
   right? IF 0 facing ! THEN ;
 
 \ physics - grounded: turn and maybe hop. Airborne: physics-air (fast.fs)
-\ moves the bunny and lands it on one-way platforms.
+\ moves the bunny and lands it on one-way platforms, one step per 60 Hz
+\ field that passed since the last flip, so a slow frame does not slow the
+\ hop.
 : physics  ( -- )
   grounded @ IF
     turn
@@ -345,27 +346,35 @@ INCLUDE fast.fs
 : at-carrot?  ( -- f )
   grounded @  ay carrot-y = AND  ax carrot-x 28 - > AND ;
 
+\ eat-step - show bunny frame and carrot frame (seq-carrot + 4 = eaten) on
+\ both pages, so the change stays whichever page is showing.
+: eat-step  ( frame carrot -- )
+  2 0 DO
+    OVER draw-frame
+    white-carrot
+    DUP seq-carrot seq-carrot-len + < IF DUP draw-carrot THEN
+    repair
+    flip
+  LOOP
+  2DROP ;
+
 \ eat - stand left of the carrot and munch it down bite by bite.
 : eat  ( -- )
-  carrot-x 16 - 16 * bx !  carrot-y 16 * by !  0 facing !
-  0 draw-frame
-  seq-carrot draw-carrot
+  carrot-x 16 - 16 * bx !  carrot-y 16 * by !  0 facing !  1 grounded !
+  0 seq-carrot eat-step
   20 hold
   4 0 DO
-    seq-munch I + draw-frame
+    seq-munch I +  seq-carrot I + 1 +  eat-step
     12 hold
-    white-carrot
-    I 3 < IF seq-carrot I + 1 + draw-carrot THEN
-    repair
   LOOP
-  0 draw-frame
+  0  seq-carrot seq-carrot-len +  eat-step
   30 hold ;
 
 \ complete - wait for space (the same level again) or BREAK. Text is #13.
 : complete  ( -- )
   BEGIN
     vsync read-input
-    hop-pressed? break? OR
+    hop-pressed? in-break @ OR
   UNTIL ;
 
 \ ---- Level flow --------------------------------------------------------
@@ -376,26 +385,35 @@ INCLUDE fast.fs
   gravity k-gravity !
   min-ax 16 * k-min-bx !  max-ax 16 * k-max-bx !
   min-ay 16 * k-min-by !
-  #plats k-plats !  level level-addr !  spr-oxy oxy-addr ! ;
+  #plats k-plats !  level level-addr !  spr-oxy oxy-addr !
+  seq-hopl k-hopl !
+  $6000 rv-alt ! ;
 
-: start-level  ( -- )
+\ reset-page - draw the static screen on the drawing page and forget the
+\ bunny it showed.
+: reset-page  ( -- )
   white-screen
   draw-level
   draw-hearts
   seq-carrot draw-carrot
+  -1 d-frame !  0 d-x !  191 d-y !  0 d-w !  0 d-h ! ;
+
+: start-level  ( -- )
   start-x 16 * bx !  start-y 16 * by !
   0 vx !  0 vy !  1 grounded !  0 facing !
-  -1 d-frame !  0 d-x !  191 d-y !  0 d-w !  0 d-h !
-  0 draw-frame ;
+  reset-page swap-page
+  reset-page swap-page
+  0 missed !  1 fields ! ;
 
-\ step - one frame of play after input has been sampled.
+\ step - one pass of play after input has been sampled; flip follows.
 : step  ( -- )
   physics
-  $7004 probe
   cur-frame draw-frame
-  at-carrot? IF
-    eat complete
-    break? 0= IF start-level THEN
+  grounded @ IF
+    at-carrot? IF
+      eat complete
+      in-break @ 0= IF start-level THEN
+    THEN
   THEN ;
 
 : main  ( -- )
@@ -404,9 +422,9 @@ INCLUDE fast.fs
   3 lives !
   start-level
   BEGIN
-    vsync
     read-input
     step
-    break?
+    flip
+    in-break @
   UNTIL
   exit-basic ;

@@ -17,13 +17,18 @@ VARIABLE oxy-addr       \ spr-oxy: signed ox oy bytes per frame index
 VARIABLE old-foot       \ foot row before this frame's move
 VARIABLE new-foot       \ foot row after it
 VARIABLE foot-x         \ anchor x in pixels
+VARIABLE k-hopl         \ first left-facing hop frame index (seq-hopl)
+VARIABLE fields         \ 60 Hz fields since the last flip, 1 to 4
 
-\ physics-air - one airborne frame: gravity, sideways move clamped to the
-\ screen, ceiling, then land on the first platform whose top the feet
-\ crossed while falling (one-way platforms: x1 <= foot x <= x2).
+\ physics-air - airborne steps, one per field in fields (#19): gravity,
+\ sideways move clamped to the screen, ceiling, then land on the first
+\ platform whose top the feet crossed while falling (one-way platforms:
+\ x1 <= foot x <= x2). Stops early on landing.
 CODE physics-air  \ ( -- )
         PSHS    X
-        LDD     FVAR_by
+        LDA     FVAR_fields+1
+        PSHS    A               ; steps left
+@step   LDD     FVAR_by
         LSRA
         RORB
         LSRA
@@ -63,7 +68,7 @@ CODE physics-air  \ ( -- )
         CLR     FVAR_vy+1
 @y1     STD     FVAR_by
         LDD     FVAR_vy
-        BLE     @done           ; rising or level: no landing
+        LBLE    @done           ; rising or level: no landing
         LDD     FVAR_by
         LSRA
         RORB
@@ -110,7 +115,39 @@ CODE physics-air  \ ( -- )
         DEC     ,S
         BNE     @plat
 @pop    LEAS    1,S
-@done   PULS    X
+@done   LDD     FVAR_grounded
+        BNE     @exit           ; landed: no more steps
+        DEC     ,S
+        LBNE    @step           ; long: the step body is over 127 bytes
+@exit   LEAS    1,S
+        PULS    X
+        ;NEXT
+;CODE
+
+\ cur-frame - frame index for the bunny state: hop1 grounded, hop2 rising
+\ (vy < -40), hop4 falling (vy > 40), hop3 in between, plus k-hopl when
+\ facing left. CODE for #19; the Forth version cost about 1,000 cy.
+CODE cur-frame  \ ( -- n )
+        LDD     FVAR_grounded
+        BEQ     @air
+        CLRB
+        BRA     @face
+@air    LDD     FVAR_vy
+        CMPD    #-40
+        BGE     @notup
+        LDB     #1
+        BRA     @face
+@notup  CMPD    #40
+        BLE     @top
+        LDB     #3
+        BRA     @face
+@top    LDB     #2
+@face   TST     FVAR_facing+1
+        BEQ     @push
+        ADDB    FVAR_k_hopl+1
+@push   CLRA
+        LEAU    -2,U
+        STD     ,U
         ;NEXT
 ;CODE
 
@@ -199,3 +236,97 @@ CODE repair-mask  \ ( -- mask )
         PULS    X
         ;NEXT
 ;CODE
+
+\ ---- Page flipping and frame timing (#19) -----------------------------
+\ Two RG6 pages: page 0 at vram-base ($0600) and page 1 at $6000 ($6000-
+\ $77FF: above the app, below the data stack at $7E00, inside 32K). Each
+\ pass draws into the hidden page (rv, used by blit, fill-box and
+\ move-sprite), then flip shows it at vsync and swaps, so the visible page
+\ is never mid-draw. rv-alt and the a-* cells hold the other page's base and
+\ the bunny box that page last showed, so each page erases its own bunny.
+\
+\ Timing: missed counts fields that ended during a pass (field-check here
+\ and a check inside move-sprite); show-page turns that into fields, the
+\ number of 60 Hz fields since the last flip (1 to 4), and physics runs
+\ that many steps so the hop keeps its speed when a frame is slow.
+\ Stats for autoplay checks: $7A00 total fields, $7A02 flips, $7A04 the
+\ page last shown (read by tools/rg6shot.py --page-ptr).
+VARIABLE rv-alt
+VARIABLE a-frame  VARIABLE a-x  VARIABLE a-y  VARIABLE a-w  VARIABLE a-h
+
+\ field-check - count a field that ended since the last check or vsync.
+CODE field-check  \ ( -- )
+        LDA     $FF03
+        BPL     @done
+        LDA     $FF02           ; clear the flag, as vsync does
+        INC     FVAR_missed+1
+@done   CLRA
+        ;NEXT
+;CODE
+
+\ show-page - point the SAM display offset at rv, set fields, keep stats.
+CODE show-page  \ ( -- )
+        PSHS    X
+        LDD     FVAR_missed
+        ADDD    #1
+        CMPD    #4
+        BLS     @cap
+        LDD     #4
+@cap    STD     FVAR_fields
+        ADDD    $7A00
+        STD     $7A00
+        LDD     $7A02
+        ADDD    #1
+        STD     $7A02
+        CLRA
+        CLRB
+        STD     FVAR_missed
+        LDD     FVAR_rv
+        STD     $7A04
+        LSRA                    ; A = rv / 512, the SAM F offset
+        LDB     #7
+        LDX     #$FFC6          ; F0 clear; +1 sets, +2 is the next bit
+@bit    LSRA
+        BCC     @clr
+        STA     1,X
+        BRA     @next
+@clr    STA     ,X
+@next   LEAX    2,X
+        DECB
+        BNE     @bit
+        PULS    X
+        ;NEXT
+;CODE
+
+\ swap-page - make the other page the drawing page.
+CODE swap-page  \ ( -- )
+        LDD     FVAR_rv
+        LDY     FVAR_rv_alt
+        STY     FVAR_rv
+        STD     FVAR_rv_alt
+        LDD     FVAR_d_frame
+        LDY     FVAR_a_frame
+        STY     FVAR_d_frame
+        STD     FVAR_a_frame
+        LDD     FVAR_d_x
+        LDY     FVAR_a_x
+        STY     FVAR_d_x
+        STD     FVAR_a_x
+        LDD     FVAR_d_y
+        LDY     FVAR_a_y
+        STY     FVAR_d_y
+        STD     FVAR_a_y
+        LDD     FVAR_d_w
+        LDY     FVAR_a_w
+        STY     FVAR_d_w
+        STD     FVAR_a_w
+        LDD     FVAR_d_h
+        LDY     FVAR_a_h
+        STY     FVAR_d_h
+        STD     FVAR_a_h
+        ;NEXT
+;CODE
+
+\ flip - end of a pass: count a late field, wait for vsync, show the page
+\ just drawn, draw into the other one next.
+: flip  ( -- )  field-check vsync show-page swap-page ;

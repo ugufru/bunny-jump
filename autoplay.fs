@@ -1,21 +1,22 @@
 \ autoplay.fs - scripted play-through for headless checks with make shot
 \
 \ Same game as bunny-jump.fs, but the keyboard is replaced by a script so
-\ make shot SHOT_PROG=autoplay SHOT_AT=n shows real hops at frame n.
-\ The script climbs the level: hop right to the right ledge, left to the
-\ left ledge, right to the carrot ledge, right again to reach the carrot.
+\ make shot SHOT_PROG=autoplay SHOT_AT=n shows real hops at vsync call n
+\ (one per pass through flip, plus the eat holds). The script climbs the
+\ level: hop right to the right ledge, left to the left ledge, right to the
+\ carrot ledge, right again to reach the carrot.
 
 INCLUDE build/sprites.fs
 INCLUDE game.fs
 
-\ Script: pairs of (frames, keys), keys bit 0 left, bit 1 right, bit 2 hop
-\ (true on that frame only, like hop-pressed?). Frames count loop passes.
+\ Script: pairs of (passes, keys), keys bit 0 left, bit 1 right, bit 2 hop
+\ (true on that pass only, like hop-pressed?).
 DATA[PY script
 bytes.fromhex("0A00" "0106" "3B00" "0105" "3B00" "0106" "3B00" "0106" "FF00" "FF00")
 ]DATA
 
 VARIABLE sp        \ current script pair
-VARIABLE sp-left   \ frames left in it
+VARIABLE sp-left   \ passes left in it
 
 : auto-input  ( -- )
   sp @ 1 + C@
@@ -31,16 +32,14 @@ VARIABLE sp-left   \ frames left in it
   3 lives !
   start-level
   script sp !  script C@ sp-left !
-  \ Frame-rate probe for #17, read from the RAM dump: $7002 loop passes;
-  \ extra fields at $7000 end of pass, $7004 physics, $7006 before blit,
-  \ $7008 blit, $700A erase.
-  $7000 12 0 FILL  1 probe-on !
+  \ Frame-rate stats for #19, read from the RAM dump: show-page (fast.fs)
+  \ adds fields per flip at $7A00, counts flips at $7A02, and stores the
+  \ page shown at $7A04.
+  $7A00 6 0 FILL
   BEGIN
-    $7000 probe
-    vsync
-    1 $7002 +!
     auto-input
     step
+    flip
     break?
   UNTIL
   exit-basic ;

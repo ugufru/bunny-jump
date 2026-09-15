@@ -12,6 +12,10 @@ keeps the TV aspect: one artifact pixel is two dots wide).
 Palette is the artifact colour set XRoar shows under -tv-type ntsc
 -tv-input cmp-br (TV_INPUT_CMP_KBRW: black, blue, red, white for codes
 00 01 10 11). Pass --rb for the cmp-rb order (red and blue swapped).
+
+--page-ptr=ADDR reads a 16-bit page address from the dump at ADDR and renders
+that page instead, when it is base or $6000: the game flips between two
+pages (issue #19) and stores the page on screen there.
 """
 
 import sys
@@ -33,6 +37,12 @@ def main():
     sx = int(args[3]) if len(args) > 3 else 4
     sy = int(args[4]) if len(args) > 4 else 2
     rgb = [BLACK, RED, BLUE, WHITE] if rb else [BLACK, BLUE, RED, WHITE]
+    for a in sys.argv[1:]:
+        if a.startswith("--page-ptr="):
+            ptr = int(a.split("=", 1)[1], 0)
+            shown = int.from_bytes(ram[ptr:ptr + 2], "big")
+            if shown in (base, 0x6000):
+                base = shown
 
     size = H * BYTES_PER_ROW
     page = ram[base:base + size]
