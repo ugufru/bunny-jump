@@ -1,8 +1,8 @@
 \ game.fs - bunny-jump game code, shared by bunny-jump.fs and autoplay.fs
 \
-\ Hop the bunny up the platforms to the carrot. Left/right arrows face,
-\ space hops (straight up, or up-left/up-right with an arrow held), BREAK
-\ quits. White background, black platforms, drawn with the opaque byte blit.
+\ Hop the bunny up the platforms to the carrot. A left/right arrow press
+\ turns the bunny, or steps it when it already faces that way; space hops
+\ (straight up, or up-left/up-right with an arrow held); BREAK quits. White background, black platforms, drawn with the opaque byte blit.
 \
 \ Art: PixelFarm, Stephen 'Redshrike' Challener (see CREDITS.md).
 \ Work tracking: issues.jsonl (#5 hop, #6 platforms, #7 carrot, #8 hearts,
@@ -24,6 +24,7 @@ INCLUDE input.fs
 8   CONSTANT gravity        \ added to vy every field
 111 CONSTANT hop-v          \ upward speed at take-off
 28  CONSTANT hop-dx         \ sideways speed of a diagonal hop
+64  CONSTANT step-dx        \ one step: 4 pixels, one VRAM byte (#23)
 28  CONSTANT min-ax         \ anchor x limits keep every frame on screen
 100 CONSTANT max-ax         \   (widest frame reaches ax-28 .. ax+28)
 30  CONSTANT min-ay         \ ceiling: the tallest 1x frame reaches ay-29
@@ -321,18 +322,41 @@ INCLUDE fast.fs
   ELSE right? IF  hop-dx vx !  0 facing !
   ELSE 0 vx ! THEN THEN ;
 
-: turn  ( -- )
-  left? IF 1 facing ! THEN
-  right? IF 0 facing ! THEN ;
+\ supported? - is there a platform top at the feet row under the foot x?
+: supported?  ( -- f )
+  #plats 0 DO
+    I plat 2 + C@ ay = IF
+      bx @ 4 RSHIFT  DUP I plat C@ 1 - >  SWAP I plat 1 + C@ 1 + <  AND
+      IF -1 EXIT THEN
+    THEN
+  LOOP
+  0 ;
 
-\ physics - grounded: turn and maybe hop. Airborne: physics-air (fast.fs)
+\ step-or-turn - an arrow press on the ground (#23), dir 0 right, 1 left.
+\ Facing the other way: turn around only. Facing that way: step step-dx,
+\ and fall if the step leaves the ledge.
+: step-or-turn  ( dir -- )
+  DUP facing @ = IF
+    IF step-dx NEGATE ELSE step-dx THEN
+    bx @ +  min-ax 16 * MAX  max-ax 16 * MIN  bx !
+    supported? 0= IF  0 grounded !  0 vy !  0 vx !  THEN
+  ELSE
+    facing !
+  THEN ;
+
+\ physics - grounded: space hops (diagonally with an arrow held), else an
+\ arrow press turns or steps. Airborne: physics-air (fast.fs)
 \ moves the bunny and lands it on one-way platforms, one step per 60 Hz
 \ field that passed since the last flip, so a slow frame does not slow the
 \ hop.
 : physics  ( -- )
   grounded @ IF
-    turn
-    hop-pressed? IF hop! THEN
+    hop-pressed? IF
+      hop!
+    ELSE
+      in-lpress @ IF 1 step-or-turn THEN
+      in-rpress @ IF 0 step-or-turn THEN
+    THEN
   ELSE
     physics-air
   THEN ;

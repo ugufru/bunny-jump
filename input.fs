@@ -28,6 +28,8 @@ VARIABLE in-right
 VARIABLE in-space      \ space state at the latest sample
 VARIABLE in-hop        \ non-zero only on the frame space went down
 VARIABLE in-break
+VARIABLE in-lpress     \ non-zero only on the frame left went down (#23)
+VARIABLE in-rpress     \ non-zero only on the frame right went down
 
 \ read-input - sample the keyboard once per frame. CODE for #19: one pass
 \ over the four matrix columns instead of four Forth KEY-HELD? calls. Like
@@ -37,15 +39,30 @@ CODE read-input  \ ( -- )
         STB     $FF02
         LDB     $FF00
         COMB
-        ANDB    #$08
-        CLRA
-        STD     FVAR_in_left
+        ANDB    #$08            ; B = left now
+        LDA     FVAR_in_left+1
+        COMA
+        PSHS    A               ; not left before
+        TFR     B,A
+        ANDA    ,S+             ; A = went down this frame
+        STA     FVAR_in_lpress+1
+        CLR     FVAR_in_lpress
+        STB     FVAR_in_left+1
+        CLR     FVAR_in_left
         LDB     #$BF            ; column 6: right arrow, row 3
         STB     $FF02
         LDB     $FF00
         COMB
-        ANDB    #$08
-        STD     FVAR_in_right
+        ANDB    #$08            ; B = right now
+        LDA     FVAR_in_right+1
+        COMA
+        PSHS    A
+        TFR     B,A
+        ANDA    ,S+
+        STA     FVAR_in_rpress+1
+        CLR     FVAR_in_rpress
+        STB     FVAR_in_right+1
+        CLR     FVAR_in_right
         LDB     #$7F            ; column 7: space, row 3
         STB     $FF02
         LDB     $FF00

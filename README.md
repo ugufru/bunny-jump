@@ -6,7 +6,8 @@ white, red and blue). Derived from the bunny demo in ~/github/bunny.
 
 ## Controls
 
-- Left / right arrows: direction
+- Left / right arrow: turn around, or take a small step if already facing
+  that way (one step per press)
 - Space: hop (straight up, or up-left / up-right with an arrow held)
 - BREAK: quit to BASIC
 

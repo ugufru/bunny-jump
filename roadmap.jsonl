@@ -1,3 +1,4 @@
-{"rank": 1, "id": 21, "why": "The user's art notes on the new 1x1 bunny. Cheap and independent of the engine work, so it slots in right after the flicker fix the user called unacceptable.", "added": "2026-09-15"}
-{"rank": 2, "id": 2, "why": "Cheap tooling that makes every later issue verifiable from a PNG, without depending on the XRoar window (which bunny found unreliable on another macOS Space).", "added": "2026-09-15"}
-{"rank": 3, "id": 13, "why": "Last piece of the proof-of-concept ending. The hand-drawn banner option reuses the sprite pipeline, so it is small once the user has played the loop.", "added": "2026-09-15"}
+{"rank": 1, "id": 23, "why": "The user's current request: it changes how the bunny is controlled, which every later level and art check depends on.", "added": "2026-09-15"}
+{"rank": 2, "id": 21, "why": "The user's art notes on the new 1x1 bunny. Cheap and independent of the engine work, so it slots in right after the flicker fix the user called unacceptable.", "added": "2026-09-15"}
+{"rank": 3, "id": 2, "why": "Cheap tooling that makes every later issue verifiable from a PNG, without depending on the XRoar window (which bunny found unreliable on another macOS Space).", "added": "2026-09-15"}
+{"rank": 4, "id": 13, "why": "Last piece of the proof-of-concept ending. The hand-drawn banner option reuses the sprite pipeline, so it is small once the user has played the loop.", "added": "2026-09-15"}
