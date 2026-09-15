@@ -1,5 +1,4 @@
-{"rank": 1, "id": 25, "why": "Implemented and checked with autoplay shots; only the user's play test is left before it closes.", "added": "2026-09-15"}
-{"rank": 2, "id": 21, "why": "The user's own notes on the 1x1 bunny (rounder head, puffier tail). The engine work is done, so the look is what the user sees most now.", "added": "2026-09-15"}
-{"rank": 3, "id": 15, "why": "Same art pass as #21: remapping the mid grey is a one-line frames.json change, cheapest done while the frames are being touched anyway.", "added": "2026-09-15"}
-{"rank": 4, "id": 13, "why": "Finishes the level-complete moment after the carrot and heart. The hand-drawn banner reuses the sprite pipeline, so it follows the art pass.", "added": "2026-09-15"}
-{"rank": 5, "id": 11, "why": "More levels are the natural next step now that the controls feel right, and a level format is what the fail-state ideas in #9 would build on.", "added": "2026-09-15"}
+{"rank": 1, "id": 21, "why": "The user's own notes on the 1x1 bunny (rounder head, puffier tail). The engine work is done, so the look is what the user sees most now.", "added": "2026-09-15"}
+{"rank": 2, "id": 15, "why": "Same art pass as #21: remapping the mid grey is a one-line frames.json change, cheapest done while the frames are being touched anyway.", "added": "2026-09-15"}
+{"rank": 3, "id": 13, "why": "Finishes the level-complete moment after the carrot and heart. The hand-drawn banner reuses the sprite pipeline, so it follows the art pass.", "added": "2026-09-15"}
+{"rank": 4, "id": 11, "why": "More levels are the natural next step now that the controls feel right, and a level format is what the fail-state ideas in #9 would build on.", "added": "2026-09-15"}
