@@ -26,11 +26,18 @@ VARIABLE sp-left   \ frames left in it
 
 : auto-main  ( -- )
   rg-init
+  init-spr-tab
   3 lives !
   start-level
   script sp !  script C@ sp-left !
+  \ Frame-rate probe for #17, read from the RAM dump: $7002 loop passes;
+  \ extra fields at $7000 end of pass, $7004 physics, $7006 before blit,
+  \ $7008 blit, $700A erase.
+  $7000 12 0 FILL  1 probe-on !
   BEGIN
+    $7000 probe
     vsync
+    1 $7002 +!
     auto-input
     step
     break?

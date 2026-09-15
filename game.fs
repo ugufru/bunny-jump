@@ -45,11 +45,35 @@ bytes.fromhex("007FBC" "447B94" "043B6C" "3C7B48")
 
 : draw-level  ( -- )  #plats 0 DO  I plat draw-plat  LOOP ;
 
+\ ---- Frame-rate probe (#17) -------------------------------------------
+\ When probe-on is set, probe counts fields that ended since the last probe
+\ or vsync into the cell at addr (clearing the field-sync flag the way
+\ vsync does), one counter per spot, so the RAM dump shows where time goes. Called between steps that each take less than one field, so
+\ no field is missed: fps = 60 * passes / (passes + count). Off in play.
+VARIABLE probe-on
+
+: probe  ( addr -- )
+  probe-on @ IF
+    $FF03 C@ $80 AND IF  $FF02 C@ DROP  1 OVER +!  THEN
+  THEN  DROP ;
+
 \ ---- Sprite helpers ----------------------------------------------------
 : sx8     ( c -- n )  DUP 127 > IF 256 - THEN ;
 : f-ox    ( n -- ox )  2* spr-oxy + C@ sx8 ;
 : f-oy    ( n -- oy )  2* spr-oxy + 1 + C@ sx8 ;
 : rec-wb  ( addr -- wbytes )  C@ 2 RSHIFT ;
+
+\ spr@ - frame index to record address through a table filled once by
+\ init-spr-tab. The generated spr word tests up to 19 indexes in turn,
+\ about 4,000 cy at worst, too slow to call every frame (#17).
+DATA[PY spr-tab
+bytes.fromhex("00" * 64)
+]DATA
+
+: init-spr-tab  ( -- )
+  spr-count 0 DO  I spr  I 2* spr-tab + !  LOOP ;
+
+: spr@  ( n -- addr )  2* spr-tab + @ ;
 : rec-h   ( addr -- h )  1 + C@ ;
 
 \ ---- Hearts (#8) -------------------------------------------------------
@@ -77,42 +101,202 @@ VARIABLE facing                 \ 0 right, 1 left
   facing @ IF seq-hopl + THEN ;
 
 \ ---- Drawing -----------------------------------------------------------
-\ The new frame is blitted first (opaque, so it covers its own box), then
-\ only the strips of the old box outside the new one are erased to white,
-\ then platforms and hearts that either box touched are redrawn.
+\ move-sprite blits the new frame (opaque, so it covers its own box), then
+\ erases to white only the strips of the old box outside the new one, then
+\ platforms and hearts that either box touched are redrawn by repair.
+\ Box values are byte columns and rows, all below 256; the CODE word keeps
+\ them in the low byte of each VARIABLE.
 VARIABLE d-frame  VARIABLE d-x  VARIABLE d-y  VARIABLE d-w  VARIABLE d-h
-VARIABLE n-x  VARIABLE n-y  VARIABLE n-w  VARIABLE n-h
+VARIABLE n-x  VARIABLE n-y  VARIABLE n-w
 VARIABLE ox1  VARIABLE ox2  VARIABLE oy1  VARIABLE oy2
 VARIABLE nx1  VARIABLE nx2  VARIABLE ny1  VARIABLE ny2
-VARIABLE mr1  VARIABLE mr2
+VARIABLE mv-c1  VARIABLE mv-c2  VARIABLE mv-r1  VARIABLE mv-r2
 
-\ fill-rect - white byte columns c1..c2-1, rows r1..r2-1; nothing if empty.
-: fill-rect  ( c1 c2 r1 r2 -- )
-  2DUP < 0= IF 2DROP 2DROP EXIT THEN
-  OVER - >R >R
-  2DUP < 0= IF 2DROP R> R> 2DROP EXIT THEN
-  OVER -  SWAP 4 *  R>  ROT  R>  $FF fill-box ;
-
-: boxes  ( -- )
-  d-x @ 2 RSHIFT DUP ox1 !  d-w @ + ox2 !
-  d-y @ DUP oy1 !  d-h @ + oy2 !
-  n-x @ 2 RSHIFT DUP nx1 !  n-w @ + nx2 !
-  n-y @ DUP ny1 !  n-h @ + ny2 ! ;
-
-: erase-uncovered  ( -- )
-  d-w @ 0= IF EXIT THEN
-  boxes
-  ox1 @ ox2 @  oy1 @  oy2 @ ny1 @ MIN  fill-rect
-  ox1 @ ox2 @  oy1 @ ny2 @ MAX  oy2 @  fill-rect
-  oy1 @ ny1 @ MAX mr1 !  oy2 @ ny2 @ MIN mr2 !
-  ox1 @  ox2 @ nx1 @ MIN  mr1 @ mr2 @ fill-rect
-  ox1 @ nx2 @ MAX  ox2 @  mr1 @ mr2 @ fill-rect ;
+\ move-sprite - draw record at top-left x,y (x a multiple of 4) and erase
+\ what is left of the previous box (d-x d-y in pixels, d-w in bytes, d-h
+\ rows; d-w 0 means nothing drawn yet). Updates d-x d-y d-w d-h, and leaves
+\ ox1 ox2 oy1 oy2 (old) and nx1 nx2 ny1 ny2 (new) for repair. CODE for
+\ #17: the Forth version cost about 2.7 fields per moving frame.
+CODE move-sprite  \ ( rec x y -- )
+        PSHS    X,U
+        LDY     4,U             ; Y = record
+        LDB     1,U             ; new top row
+        STB     FVAR_ny1+1
+        ADDB    1,Y
+        STB     FVAR_ny2+1      ; bottom row, exclusive
+        LDA     ,Y              ; width in pixels
+        LSRA
+        LSRA
+        STA     FVAR_n_w+1      ; bytes per row
+        LDB     3,U             ; new left pixel
+        LSRB
+        LSRB
+        STB     FVAR_nx1+1
+        PSHS    A
+        ADDB    ,S+
+        STB     FVAR_nx2+1
+; ---- blit, two bytes at a time
+        LDB     FVAR_ny1+1
+        CLRA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA                    ; D = top * 32
+        ADDD    FVAR_rv
+        ADDB    FVAR_nx1+1
+        ADCA    #0
+        STD     FVAR_blt_dst
+        LDB     1,Y
+        STB     FVAR_blt_h+1    ; rows left
+        LEAX    2,Y             ; X = pixel data
+@row    LDU     FVAR_blt_dst
+        LDB     FVAR_n_w+1
+        LSRB                    ; B = pairs, carry = odd byte
+        BCC     @even
+        LDA     ,X+
+        STA     ,U+
+        TSTB
+        BEQ     @rowend
+@even   PSHS    B
+@pair   LDD     ,X++
+        STD     ,U++
+        DEC     ,S
+        BNE     @pair
+        LEAS    1,S
+@rowend LDD     FVAR_blt_dst
+        ADDD    #32
+        STD     FVAR_blt_dst
+        DEC     FVAR_blt_h+1
+        BNE     @row
+; ---- erase the old box minus the new one
+        LDB     FVAR_d_w+1
+        BNE     @old
+        LDB     FVAR_ny1+1      ; nothing drawn before: old box = new
+        STB     FVAR_oy1+1
+        LDB     FVAR_ny2+1
+        STB     FVAR_oy2+1
+        LBRA    @store
+@old    LDB     FVAR_d_x+1
+        LSRB
+        LSRB
+        STB     FVAR_ox1+1
+        ADDB    FVAR_d_w+1
+        STB     FVAR_ox2+1
+        LDB     FVAR_d_y+1
+        STB     FVAR_oy1+1
+        ADDB    FVAR_d_h+1
+        STB     FVAR_oy2+1
+; top strip: columns ox1..ox2, rows oy1..min(oy2,ny1)
+        LDA     FVAR_ox1+1
+        STA     FVAR_mv_c1+1
+        LDA     FVAR_ox2+1
+        STA     FVAR_mv_c2+1
+        LDA     FVAR_oy1+1
+        STA     FVAR_mv_r1+1
+        LDA     FVAR_oy2+1
+        CMPA    FVAR_ny1+1
+        BLS     @t1
+        LDA     FVAR_ny1+1
+@t1     STA     FVAR_mv_r2+1
+        LBSR    @fill
+; bottom strip: columns ox1..ox2, rows max(oy1,ny2)..oy2
+        LDA     FVAR_oy1+1
+        CMPA    FVAR_ny2+1
+        BHS     @b1
+        LDA     FVAR_ny2+1
+@b1     STA     FVAR_mv_r1+1
+        LDA     FVAR_oy2+1
+        STA     FVAR_mv_r2+1
+        LBSR    @fill
+; middle rows max(oy1,ny1)..min(oy2,ny2)
+        LDA     FVAR_oy1+1
+        CMPA    FVAR_ny1+1
+        BHS     @m1
+        LDA     FVAR_ny1+1
+@m1     STA     FVAR_mv_r1+1
+        LDA     FVAR_oy2+1
+        CMPA    FVAR_ny2+1
+        BLS     @m2
+        LDA     FVAR_ny2+1
+@m2     STA     FVAR_mv_r2+1
+; left strip: columns ox1..min(ox2,nx1)
+        LDA     FVAR_ox2+1
+        CMPA    FVAR_nx1+1
+        BLS     @l1
+        LDA     FVAR_nx1+1
+@l1     STA     FVAR_mv_c2+1
+        LBSR    @fill
+; right strip: columns max(ox1,nx2)..ox2
+        LDA     FVAR_ox1+1
+        CMPA    FVAR_nx2+1
+        BHS     @r1
+        LDA     FVAR_nx2+1
+@r1     STA     FVAR_mv_c1+1
+        LDA     FVAR_ox2+1
+        STA     FVAR_mv_c2+1
+        LBSR    @fill
+@store  LDU     2,S             ; U = data stack as it was on entry
+        LDD     2,U
+        STD     FVAR_d_x
+        LDD     ,U
+        STD     FVAR_d_y
+        CLRA
+        LDB     FVAR_n_w+1
+        STD     FVAR_d_w
+        LDB     FVAR_ny2+1
+        SUBB    FVAR_ny1+1
+        STD     FVAR_d_h
+        PULS    X,U
+        LEAU    6,U
+        ;NEXT
+; fill: white columns mv-c1..mv-c2-1, rows mv-r1..mv-r2-1; nothing if empty
+@fill   LDB     FVAR_mv_c2+1
+        SUBB    FVAR_mv_c1+1
+        BLS     @fret
+        STB     FVAR_blt_w+1
+        LDB     FVAR_mv_r2+1
+        SUBB    FVAR_mv_r1+1
+        BLS     @fret
+        STB     FVAR_blt_h+1
+        LDB     FVAR_mv_r1+1
+        CLRA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ADDD    FVAR_rv
+        ADDB    FVAR_mv_c1+1
+        ADCA    #0
+        TFR     D,X
+@frow   TFR     X,U
+        LDB     FVAR_blt_w+1
+        LDA     #$FF
+@fbyte  STA     ,U+
+        DECB
+        BNE     @fbyte
+        LEAX    32,X
+        DEC     FVAR_blt_h+1
+        BNE     @frow
+@fret   RTS
+;CODE
 
 VARIABLE rlo  VARIABLE rhi
 
 : repair  ( -- )
-  n-y @ d-y @ MIN rlo !
-  n-y @ n-h @ +  d-y @ d-h @ +  MAX rhi !
+  ny1 @ oy1 @ MIN rlo !
+  ny2 @ oy2 @ MAX rhi !
   #plats 0 DO
     I plat 2 + C@  DUP rhi @ <  SWAP 4 + rlo @ >  AND
     IF I plat draw-plat THEN
@@ -123,14 +307,13 @@ VARIABLE rlo  VARIABLE rhi
 : draw-frame  ( n -- )
   DUP f-ox ax + n-x !
   DUP f-oy ay + n-y !
-  DUP spr DUP rec-wb n-w !  rec-h n-h !
   DUP d-frame @ =  n-x @ d-x @ = AND  n-y @ d-y @ = AND
   IF DROP EXIT THEN
-  DUP spr n-x @ n-y @ blit
-  d-frame !
-  erase-uncovered
-  repair
-  n-x @ d-x !  n-y @ d-y !  n-w @ d-w !  n-h @ d-h ! ;
+  $7006 probe
+  DUP d-frame !
+  spr@ n-x @ n-y @ move-sprite
+  $7008 probe
+  repair ;
 
 \ ---- Physics (#5, #6) --------------------------------------------------
 VARIABLE old-foot
@@ -181,7 +364,7 @@ VARIABLE py
 
 \ ---- Carrot (#7) -------------------------------------------------------
 : draw-carrot  ( n -- )
-  DUP spr  SWAP DUP f-ox carrot-x +  SWAP f-oy carrot-y +  blit ;
+  DUP spr@  SWAP DUP f-ox carrot-x +  SWAP f-oy carrot-y +  blit ;
 
 : white-carrot  ( -- )
   spr-carrot3  carrot-x spr-carrot3-ox +  carrot-y spr-carrot3-oy +  white-box ;
@@ -228,6 +411,7 @@ VARIABLE py
 \ step - one frame of play after input has been sampled.
 : step  ( -- )
   physics
+  $7004 probe
   cur-frame draw-frame
   at-carrot? IF
     eat complete
@@ -236,6 +420,7 @@ VARIABLE py
 
 : main  ( -- )
   rg-init
+  init-spr-tab
   3 lives !
   start-level
   BEGIN

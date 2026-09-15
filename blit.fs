@@ -61,16 +61,47 @@ CODE blit  \ ( addr x y -- )
         ;NEXT
 ;CODE
 
-VARIABLE fb-byte
-VARIABLE fb-w
-
 \ fill-box - fill h rows of wbytes VRAM bytes with byte, top-left at x,y
-\ (x in artifact pixels, a multiple of 4). h must be at least 1.
-: fill-box  ( x y wbytes h byte -- )
-  fb-byte !  SWAP fb-w !  >R
-  32 * rv @ +  SWAP 2 RSHIFT +
-  R> 0 DO  DUP fb-w @ fb-byte @ FILL  32 +  LOOP
-  DROP ;
+\ (x in artifact pixels, a multiple of 4). wbytes and h must be at least 1.
+\ CODE for #17: the Forth DO/FILL version cost a FILL call per row.
+CODE fill-box  \ ( x y wbytes h byte -- )
+        PSHS    X,U
+        LDD     6,U             ; D = top row
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA
+        ASLB
+        ROLA                    ; D = top * 32
+        ADDD    FVAR_rv
+        TFR     D,X             ; X = start of the top row
+        LDD     8,U             ; D = left pixel
+        ASRA
+        RORB
+        ASRA
+        RORB                    ; D = left byte
+        LEAX    D,X             ; X = first byte to fill
+        LDB     3,U
+        STB     FVAR_blt_h+1    ; rows left
+        LDB     5,U
+        STB     FVAR_blt_w+1    ; bytes per row
+        LDA     1,U             ; A = fill byte
+@row    TFR     X,U
+        LDB     FVAR_blt_w+1
+@byte   STA     ,U+
+        DECB
+        BNE     @byte
+        LEAX    32,X            ; next row
+        DEC     FVAR_blt_h+1
+        BNE     @row
+        PULS    X,U
+        LEAU    10,U
+        ;NEXT
+;CODE
 
 \ white-box - erase the box a sprite record covers at x,y to white.
 : white-box  ( addr x y -- )
