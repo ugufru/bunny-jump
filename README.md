@@ -83,6 +83,38 @@ Any top-level `.fs` program builds with `make name.bin` and runs with
 - `RETROSPECTIVE.md`: how this repo got built, from the session that
   built it.
 
+## How it got built
+
+The whole thing was built in one session, from a concept to this repo.
+
+It started from the bunny demo, which runs in a 128x96 four-color mode. This
+game needed the other one: 256x192 dots that NTSC artifacting turns into 128
+wide pixels in black, white, red and blue. The first program drawn was four
+color bands, to settle which bit pattern shows red before any art depended on
+the answer. Then the plan became a tracker of issues and a ranked roadmap, and
+the work followed it: a sprite pipeline, a keyboard scan, hop physics,
+one-way platforms, the carrot and the hearts.
+
+Two things shaped the result more than the plan did. The first was a white
+background with a black-outlined bunny, decided after the first sprites were
+converted. The kernel's sprite routine treats black as transparent, so it
+could not draw an outline, and the game got its own byte-copying blitter
+instead: faster, and the reason the bunny moves sideways in four pixel steps.
+The second was a question about frame rate. It was running at about 22 frames
+per second while hopping, not 60. Getting there took measuring where the
+video fields actually went, moving the drawing, physics and keyboard into
+6809 assembly, halving the art height to 1x1 rows (which turned out to look
+better anyway), and finally drawing every frame on a hidden second screen
+page and switching pages during vertical blank, which also removed the
+flicker.
+
+Along the way the bunny fell through every platform for a while, because a
+kernel word read its argument from the wrong place on the stack, and kept
+falling until it wrote over the program. That one is filed to fix upstream.
+
+The full account, including what went wrong and what would be done
+differently, is in [RETROSPECTIVE.md](RETROSPECTIVE.md).
+
 ## Status
 
 A proof of concept of the core mechanic: hopping, stepping, one-way ledges,
