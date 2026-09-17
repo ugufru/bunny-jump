@@ -80,6 +80,8 @@ Any top-level `.fs` program builds with `make name.bin` and runs with
 - `issues.jsonl`, `roadmap.jsonl`, `issues.html`: work tracking; open
   `issues.html` to browse.
 - `CREDITS.md`: art attribution and licenses.
+- `RETROSPECTIVE.md`: how this repo got built, from the session that
+  built it.
 
 ## Status
 
